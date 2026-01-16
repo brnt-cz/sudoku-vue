@@ -107,6 +107,9 @@ const handleInputChange = (row, col, event) => {
             )
         );
         emit('update:grid', newGrid);
+    } else {
+        // Vrátit původní hodnotu do inputu při neplatném vstupu
+        target.value = props.grid[row][col].value || '';
     }
 };
 

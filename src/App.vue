@@ -289,7 +289,7 @@ function isGameSolved(gameId) {
             <aside
                 id="saved-games-panel"
                 :class="[
-                    'w-72 bg-white dark:bg-gray-800 border-l scroller border-gray-300 dark:border-gray-700 shadow-lg p-4 fixed right-0 top-0 h-full flex flex-col z-40 transition-transform duration-300',
+                    'w-80 md:w-72 bg-white dark:bg-gray-800 border-l scroller border-gray-300 dark:border-gray-700 shadow-lg p-5 md:p-4 fixed right-0 top-0 h-full flex flex-col z-40 transition-transform duration-300',
                     isPanelOpen ? 'translate-x-0' : 'translate-x-full',
                     'md:translate-x-0'
                 ]"
@@ -303,18 +303,18 @@ function isGameSolved(gameId) {
                     Žádná uložená hra
                 </div>
 
-                <ul class="flex-1 overflow-y-auto space-y-2 mb-6" aria-label="Seznam uložených her">
+                <ul class="flex-1 overflow-y-auto space-y-3 md:space-y-2 mb-6" aria-label="Seznam uložených her">
                     <li
                         v-for="game in savedGames"
                         :key="game.id"
                         :class="[
-                            'bg-gray-100 dark:bg-gray-700 dark:text-white rounded px-2 py-1 flex flex-col space-y-1 transition-colors',
+                            'bg-gray-100 dark:bg-gray-700 dark:text-white rounded px-3 py-2 md:px-2 md:py-1 flex flex-col space-y-2 md:space-y-1 transition-colors',
                             highlightedId === game.id ? 'animate-pulse bg-gray-300 dark:bg-gray-600' : '',
                             isGameSolved(game.id) ? 'opacity-100' : ''
                         ]"
                     >
                         <div class="flex items-center justify-between">
-                            <span :class="['truncate text-xs font-bold flex items-center gap-2', game.name ? '' : 'italic text-gray-500 dark:text-gray-300']">
+                            <span :class="['truncate text-sm md:text-xs font-bold flex items-center gap-2', game.name ? '' : 'italic text-gray-500 dark:text-gray-300']">
                                 {{ game.name || 'Nepojmenovaná hra' }}
                                 <svg
                                     v-if="isGameSolved(game.id)"
@@ -339,24 +339,29 @@ function isGameSolved(gameId) {
                                     autofocus
                                     @input="handleNameChange"
                                     @keydown="(e) => handleNameKeydown(e, game.id)"
-                                    class="flex-1 px-1 ml-2 py-0.5 text-xs rounded border border-gray-300 dark:bg-gray-800 dark:text-white w-20"
+                                    class="flex-1 px-2 ml-2 py-1 md:px-1 md:py-0.5 text-sm md:text-xs rounded border border-gray-300 dark:bg-gray-800 dark:text-white w-24 md:w-20"
                                     :aria-label="'Přejmenovat hru ' + (game.name || 'Nepojmenovaná hra')"
                                     maxlength="100"
                                 />
                                 <button
-                                    class="px-2 py-0.5 bg-green-500 text-white rounded text-xs ml-1"
+                                    class="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded ml-1 flex items-center cursor-pointer"
                                     @click="saveName(game.id)"
+                                    title="Uložit název"
                                     aria-label="Uložit název"
-                                >OK</button>
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </button>
                             </template>
                             <template v-else>
                                 <button
-                                    class="ml-2 p-1 bg-transparent hover:bg-gray-300 dark:hover:bg-gray-600 rounded"
+                                    class="ml-2 p-2 md:p-1 bg-transparent hover:bg-gray-300 dark:hover:bg-gray-600 rounded cursor-pointer"
                                     title="Přejmenovat"
                                     :aria-label="'Přejmenovat hru ' + (game.name || 'Nepojmenovaná hra')"
                                     @click="startEditName(game.id, game.name || '')"
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="18" height="18" class="md:w-3.5 md:h-3.5" fill="currentColor" aria-hidden="true">
                                         <path d="M15.72 2.927a2.25 2.25 0 1 1 3.182 3.182l-1.303 1.302-3.182-3.182 1.303-1.302zm-2.01 2.01l3.182 3.182-9.09 9.091a2 2 0 0 1-.78.486l-3.23 1.076a.626.626 0 0 1-.79-.79l1.075-3.23a2 2 0 0 1 .487-.779l9.09-9.09z"/>
                                     </svg>
                                 </button>
@@ -364,21 +369,28 @@ function isGameSolved(gameId) {
                         </div>
 
                         <div class="flex items-center justify-between">
-                            <span class="truncate text-xs">{{ game.savedAt }}</span>
-                            <div>
+                            <span class="truncate text-sm md:text-xs">{{ game.savedAt }}</span>
+                            <div class="flex gap-2">
                                 <button
-                                    class="ml-2 px-2 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-700 text-xs focus:outline-none"
+                                    class="p-2 bg-[#009966] hover:bg-[#007a52] text-white rounded focus:outline-none flex items-center cursor-pointer"
                                     @click="handleLoad(game)"
+                                    title="Načíst"
                                     :aria-label="'Načíst hru ' + (game.name || 'Nepojmenovaná hra')"
                                 >
-                                    Načíst
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4M17 8l-5-5-5 5M12 3v12"></path>
+                                    </svg>
                                 </button>
                                 <button
-                                    class="ml-2 px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-700 text-xs focus:outline-none"
+                                    class="p-2 bg-[#C7012A] hover:bg-[#a50122] text-white rounded focus:outline-none flex items-center cursor-pointer"
                                     @click="deleteGame(game.id)"
+                                    title="Smazat"
                                     :aria-label="'Smazat hru ' + (game.name || 'Nepojmenovaná hra')"
                                 >
-                                    Smazat
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    </svg>
                                 </button>
                             </div>
                         </div>
@@ -387,40 +399,46 @@ function isGameSolved(gameId) {
 
                 <!-- Koš -->
                 <div class="mt-auto">
-                    <h3 class="text-base font-bold mt-2 mb-1 text-gray-700 dark:text-gray-200 text-center">Koš</h3>
+                    <h3 class="text-base font-bold mt-2 mb-2 md:mb-1 text-gray-700 dark:text-gray-200 text-center">Koš</h3>
 
-                    <div v-if="trash.length === 0" class="text-gray-400 dark:text-gray-500 text-xs italic text-center">
+                    <div v-if="trash.length === 0" class="text-gray-400 dark:text-gray-500 text-sm md:text-xs italic text-center">
                         Koš je prázdný
                     </div>
 
-                    <ul class="space-y-2" aria-label="Koš - smazané hry">
+                    <ul class="space-y-3 md:space-y-2" aria-label="Koš - smazané hry">
                         <li
                             v-for="game in trash"
                             :key="game.id"
-                            class="bg-gray-200 dark:bg-gray-600 dark:text-white rounded px-2 py-1 flex flex-col space-y-1"
+                            class="bg-gray-200 dark:bg-gray-600 dark:text-white rounded px-3 py-2 md:px-2 md:py-1 flex flex-col space-y-2 md:space-y-1"
                         >
-                            <div class="truncate text-xs font-bold">{{ game.name || 'Nepojmenovaná hra' }}</div>
+                            <div class="truncate text-sm md:text-xs font-bold">{{ game.name || 'Nepojmenovaná hra' }}</div>
                             <div class="flex items-center justify-between">
-                                <span class="truncate text-xs">
+                                <span class="truncate text-sm md:text-xs">
                                     {{ game.savedAt }}
                                     <span class="ml-1 text-gray-500">{{ formatDeleteDate(game.deletedAt) }}</span>
                                 </span>
-                                <div>
+                                <div class="flex gap-2">
                                     <button
-                                        class="ml-2 px-2 py-0.5 bg-green-500 text-white rounded text-xs focus:outline-none"
+                                        class="p-2 bg-[#009966] hover:bg-[#007a52] text-white rounded focus:outline-none flex items-center cursor-pointer"
                                         title="Obnovit"
                                         :aria-label="'Obnovit hru ' + (game.name || 'Nepojmenovaná hra')"
                                         @click="restoreGame(game.id)"
                                     >
-                                        Obnovit
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                            <path d="M3 3v5h5"></path>
+                                        </svg>
                                     </button>
                                     <button
-                                        class="ml-2 px-2 py-0.5 bg-red-700 text-white rounded text-xs focus:outline-none"
+                                        class="p-2 bg-[#C7012A] hover:bg-[#a50122] text-white rounded focus:outline-none flex items-center cursor-pointer"
                                         title="Smazat trvale"
                                         :aria-label="'Trvale smazat hru ' + (game.name || 'Nepojmenovaná hra')"
                                         @click="permanentDeleteGame(game.id)"
                                     >
-                                        Smazat
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
                                     </button>
                                 </div>
                             </div>
