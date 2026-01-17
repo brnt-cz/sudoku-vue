@@ -1,18 +1,21 @@
 /**
  * Composable pro práci s Web Workerem na generování sudoku
+ * Primárně používá externí API, fallback na lokální generování
  */
 
 import { ref, onUnmounted } from 'vue';
 import { generateSudoku as generateSudokuSync } from '../utils/sudokuGenerator.js';
+import { useSudokuApi } from './useSudokuApi.js';
 
 /**
  * @returns {{
  *   isGenerating: import('vue').Ref<boolean>,
- *   generateSudoku: (minFilled?: number) => Promise<import('../types.js').SudokuGrid>
+ *   generateSudoku: (minFilled?: number, difficulty?: string) => Promise<import('../types.js').SudokuGrid>
  * }}
  */
 export function useSudokuWorker() {
     const isGenerating = ref(false);
+    const { fetchSudoku } = useSudokuApi();
 
     /** @type {Worker | null} */
     let worker = null;
@@ -38,44 +41,67 @@ export function useSudokuWorker() {
     }
 
     /**
-     * Generuje sudoku - preferuje Worker, fallback na synchronní
-     * @param {number} [minFilled=30]
+     * Generuje sudoku pomocí lokálního workeru
+     * @param {number} minFilled
      * @returns {Promise<import('../types.js').SudokuGrid>}
      */
-    async function generateSudoku(minFilled = 30) {
+    async function generateWithWorker(minFilled) {
+        const workerInstance = getWorker();
+
+        if (workerInstance) {
+            return await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Timeout při generování sudoku'));
+                }, 10000); // 10s timeout
+
+                workerInstance.onmessage = (event) => {
+                    clearTimeout(timeout);
+                    const response = event.data;
+
+                    if (response.type === 'success') {
+                        resolve(response.grid);
+                    } else {
+                        reject(new Error(response.error || 'Chyba při generování'));
+                    }
+                };
+
+                workerInstance.onerror = (error) => {
+                    clearTimeout(timeout);
+                    reject(error);
+                };
+
+                workerInstance.postMessage({ type: 'generate', minFilled });
+            });
+        }
+
+        // Fallback - synchronní generování
+        return generateSudokuSync(minFilled);
+    }
+
+    /**
+     * Generuje sudoku - primárně z API, fallback na lokální generování
+     * @param {number} [minFilled=30] - Počet vyplněných políček pro lokální generování
+     * @param {string} [difficulty='medium'] - Požadovaná obtížnost (easy, medium, hard)
+     * @returns {Promise<import('../types.js').SudokuGrid>}
+     */
+    async function generateSudoku(minFilled = 30, difficulty = 'medium') {
         isGenerating.value = true;
 
         try {
-            const workerInstance = getWorker();
+            // Primární zdroj: externí API
+            const apiResult = await fetchSudoku(difficulty);
 
-            if (workerInstance) {
-                return await new Promise((resolve, reject) => {
-                    const timeout = setTimeout(() => {
-                        reject(new Error('Timeout při generování sudoku'));
-                    }, 10000); // 10s timeout
-
-                    workerInstance.onmessage = (event) => {
-                        clearTimeout(timeout);
-                        const response = event.data;
-
-                        if (response.type === 'success') {
-                            resolve(response.grid);
-                        } else {
-                            reject(new Error(response.error || 'Chyba při generování'));
-                        }
-                    };
-
-                    workerInstance.onerror = (error) => {
-                        clearTimeout(timeout);
-                        reject(error);
-                    };
-
-                    workerInstance.postMessage({ type: 'generate', minFilled });
-                });
+            if (apiResult && apiResult.grid) {
+                console.log('Sudoku načteno z API, obtížnost:', apiResult.difficulty);
+                return apiResult.grid;
             }
 
-            // Fallback - synchronní generování
-            return generateSudokuSync(minFilled);
+            // Fallback: lokální generování
+            console.log('API nevrátilo požadovanou obtížnost, používám lokální generování');
+            return await generateWithWorker(minFilled);
+        } catch (error) {
+            console.warn('Chyba při generování z API, fallback na lokální:', error);
+            return await generateWithWorker(minFilled);
         } finally {
             isGenerating.value = false;
         }
