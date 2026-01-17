@@ -51,7 +51,8 @@ export const DIFFICULTY_LABELS = {
 export const STORAGE_KEYS = {
     GAMES: 'sudoku_saved_games',
     TRASH: 'sudoku_games_trash',
-    THEME: 'sudoku_theme'
+    THEME: 'sudoku_theme',
+    CURRENT_GRID: 'sudoku_current_grid'
 };
 
 /**

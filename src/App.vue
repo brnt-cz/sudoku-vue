@@ -15,7 +15,36 @@ import {
     isGridComplete,
     isGridSolved
 } from './utils/sudokuGenerator.js';
-import { DIFFICULTY_MAP, DIFFICULTY_LABELS } from './types.js';
+import { DIFFICULTY_MAP, DIFFICULTY_LABELS, STORAGE_KEYS } from './types.js';
+import { getFromStorage, setToStorage } from './utils/localStorage.js';
+
+/**
+ * Validuje, zda je objekt platný SudokuGrid
+ * @param {unknown} data
+ * @returns {boolean}
+ */
+function isValidGrid(data) {
+    if (!Array.isArray(data) || data.length !== 9) return false;
+    return data.every(row =>
+        Array.isArray(row) &&
+        row.length === 9 &&
+        row.every(cell =>
+            cell &&
+            typeof cell === 'object' &&
+            'value' in cell &&
+            'isStatic' in cell
+        )
+    );
+}
+
+/**
+ * Kontroluje, zda je grid prázdný (všechny buňky bez hodnoty)
+ * @param {import('./types.js').SudokuGrid} grid
+ * @returns {boolean}
+ */
+function isGridEmpty(grid) {
+    return grid.every(row => row.every(cell => !cell.value));
+}
 
 // State
 const grid = ref(createEmptyGrid());
@@ -46,17 +75,32 @@ const {
 } = useSudokuGames(grid);
 const { isGenerating, generateSudoku: generateSudokuAsync } = useSudokuWorker();
 
-// Inicializace - vygenerujeme první sudoku
+// Inicializace - načteme uložený grid nebo vygenerujeme nový
 onMounted(async () => {
     document.title = 'Sudoku';
+
+    // Pokusíme se načíst uložený grid z localStorage
+    const savedGrid = getFromStorage(STORAGE_KEYS.CURRENT_GRID);
+
+    if (savedGrid && isValidGrid(savedGrid) && !isGridEmpty(savedGrid)) {
+        // Máme platný uložený grid, použijeme ho
+        grid.value = savedGrid;
+        return;
+    }
+
+    // Nemáme uložený grid, vygenerujeme nový
     try {
-        grid.value = await generateSudokuAsync(DIFFICULTY_MAP[difficulty.value]);
+        grid.value = await generateSudokuAsync(DIFFICULTY_MAP[difficulty.value], difficulty.value);
     } catch (error) {
         console.error('Chyba při generování sudoku:', error);
-        // Fallback - prázdný grid
         grid.value = createEmptyGrid();
     }
 });
+
+// Ukládáme aktuální grid do localStorage při každé změně
+watch(grid, (newGrid) => {
+    setToStorage(STORAGE_KEYS.CURRENT_GRID, newGrid);
+}, { deep: true });
 
 // Computed pro kontrolu, zda je hra vyřešena
 const isCurrentGridSolved = computed(() => isGridSolved(grid.value));
@@ -118,7 +162,7 @@ function handleDifficultyChange(e) {
 
 async function handleGenerate() {
     try {
-        grid.value = await generateSudokuAsync(DIFFICULTY_MAP[difficulty.value]);
+        grid.value = await generateSudokuAsync(DIFFICULTY_MAP[difficulty.value], difficulty.value);
         currentGameId.value = null;
         solveError.value = null;
     } catch (error) {
@@ -182,74 +226,78 @@ function isGameSolved(gameId) {
             <div class="flex flex-col justify-center items-center flex-grow">
                 <SudokuTable :grid="grid" @update:grid="updateGrid" />
 
-                <div class="mt-4 flex gap-2 flex-wrap justify-center">
-                    <select
-                        :value="difficulty"
-                        @change="handleDifficultyChange"
-                        class="px-2 py-1 rounded border-2 border-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white dark:bg-gray-100 dark:text-black"
-                        aria-label="Výběr obtížnosti"
-                    >
-                        <option value="easy">{{ DIFFICULTY_LABELS.easy }}</option>
-                        <option value="medium">{{ DIFFICULTY_LABELS.medium }}</option>
-                        <option value="hard">{{ DIFFICULTY_LABELS.hard }}</option>
-                    </select>
+                <div class="mt-4 flex flex-col gap-2 items-center">
+                    <div class="flex gap-2 flex-wrap justify-center">
+                        <select
+                            :value="difficulty"
+                            @change="handleDifficultyChange"
+                            class="px-2 py-1 rounded border-2 border-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white dark:bg-gray-100 dark:text-black"
+                            aria-label="Výběr obtížnosti"
+                        >
+                            <option value="easy">{{ DIFFICULTY_LABELS.easy }}</option>
+                            <option value="medium">{{ DIFFICULTY_LABELS.medium }}</option>
+                            <option value="hard">{{ DIFFICULTY_LABELS.hard }}</option>
+                        </select>
 
-                    <button
-                        class="px-4 py-2 bg-emerald-500 text-white rounded hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        @click="handleGenerate"
-                        :disabled="isGenerating"
-                        :aria-busy="isGenerating"
-                    >
-                        <svg v-if="isGenerating" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin" aria-hidden="true">
-                            <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-                        </svg>
-                        <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M12 5v14M5 12h14"></path>
-                        </svg>
-                        <span v-if="isGenerating">Generuji...</span>
-                        <span v-else>Nové sudoku</span>
-                    </button>
+                        <button
+                            class="px-4 py-2 bg-emerald-500 text-white rounded hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            @click="handleGenerate"
+                            :disabled="isGenerating"
+                            :aria-busy="isGenerating"
+                        >
+                            <svg v-if="isGenerating" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin" aria-hidden="true">
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                            </svg>
+                            <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M12 5v14M5 12h14"></path>
+                            </svg>
+                            <span v-if="isGenerating">Generuji...</span>
+                            <span v-else>Nové sudoku</span>
+                        </button>
 
-                    <button
-                        class="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-green-300 flex items-center gap-2"
-                        @click="handleSave"
-                        aria-label="Uložit aktuální hru"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                            <polyline points="7 3 7 8 15 8"></polyline>
-                        </svg>
-                        Uložit hru
-                    </button>
+                        <button
+                            class="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-green-300 flex items-center gap-2"
+                            @click="handleSave"
+                            aria-label="Uložit aktuální hru"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                <polyline points="7 3 7 8 15 8"></polyline>
+                            </svg>
+                            Uložit hru
+                        </button>
+                    </div>
 
-                    <button
-                        class="px-4 py-2 bg-sky-600 text-white rounded hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-purple-300 flex items-center gap-2"
-                        @click="handleSolve"
-                        aria-label="Automaticky vyřešit sudoku"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path>
-                            <path d="M9 18h6"></path>
-                            <path d="M10 22h4"></path>
-                        </svg>
-                        Vyřešit
-                    </button>
+                    <div class="flex gap-2 flex-wrap justify-center">
+                        <button
+                            class="px-4 py-2 bg-sky-600 text-white rounded hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-purple-300 flex items-center gap-2"
+                            @click="handleSolve"
+                            aria-label="Automaticky vyřešit sudoku"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path>
+                                <path d="M9 18h6"></path>
+                                <path d="M10 22h4"></path>
+                            </svg>
+                            Vyřešit
+                        </button>
 
-                    <button
-                        class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400 flex items-center gap-2"
-                        @click="handleEmptyGrid"
-                        aria-label="Vytvořit prázdné sudoku"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                            <line x1="9" y1="3" x2="9" y2="21"></line>
-                            <line x1="15" y1="3" x2="15" y2="21"></line>
-                            <line x1="3" y1="9" x2="21" y2="9"></line>
-                            <line x1="3" y1="15" x2="21" y2="15"></line>
-                        </svg>
-                        Prázdné sudoku
-                    </button>
+                        <button
+                            class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400 flex items-center gap-2"
+                            @click="handleEmptyGrid"
+                            aria-label="Vytvořit prázdné sudoku"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="9" y1="3" x2="9" y2="21"></line>
+                                <line x1="15" y1="3" x2="15" y2="21"></line>
+                                <line x1="3" y1="9" x2="21" y2="9"></line>
+                                <line x1="3" y1="15" x2="21" y2="15"></line>
+                            </svg>
+                            Prázdné sudoku
+                        </button>
+                    </div>
                 </div>
 
                 <div v-if="solveError" class="mt-2 text-red-600 dark:text-red-400 text-sm" role="alert">
