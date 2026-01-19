@@ -13,7 +13,8 @@ import {
     solveSudoku,
     createEmptyGrid,
     isGridComplete,
-    isGridSolved
+    isGridSolved,
+    copyGrid
 } from './utils/sudokuGenerator.js';
 import { DIFFICULTY_MAP, DIFFICULTY_LABELS, STORAGE_KEYS } from './types.js';
 import { getFromStorage, setToStorage } from './utils/localStorage.js';
@@ -51,6 +52,8 @@ const grid = ref(createEmptyGrid());
 const difficulty = ref('medium');
 const solveError = ref(null);
 const isPanelOpen = ref(false);
+/** @type {import('vue').Ref<'api' | 'local' | null>} */
+const sudokuSource = ref(null);
 
 // Composables
 const { theme, themeIcon, themeTitle, toggleTheme } = useTheme();
@@ -90,10 +93,13 @@ onMounted(async () => {
 
     // Nemáme uložený grid, vygenerujeme nový
     try {
-        grid.value = await generateSudokuAsync(DIFFICULTY_MAP[difficulty.value], difficulty.value);
+        const result = await generateSudokuAsync(DIFFICULTY_MAP[difficulty.value], difficulty.value);
+        grid.value = result.grid;
+        sudokuSource.value = result.source;
     } catch (error) {
         console.error('Chyba při generování sudoku:', error);
         grid.value = createEmptyGrid();
+        sudokuSource.value = null;
     }
 });
 
@@ -137,7 +143,7 @@ function handleLoad(game) {
 }
 
 function handleSave() {
-    saveGame();
+    saveGame(difficulty.value);
 }
 
 function handleEmptyGrid() {
@@ -155,6 +161,40 @@ function handleSolve() {
     }
 }
 
+function handleHint() {
+    // Nejdříve najdeme řešení
+    const solution = solveSudoku(grid.value);
+    if (!solution) {
+        solveError.value = 'Toto sudoku není řešitelné.';
+        return;
+    }
+
+    // Najdeme všechna prázdná políčka
+    const emptyCells = [];
+    for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+            if (!grid.value[row][col].value) {
+                emptyCells.push({ row, col });
+            }
+        }
+    }
+
+    // Pokud nejsou žádná prázdná políčka, není co vyplnit
+    if (emptyCells.length === 0) {
+        return;
+    }
+
+    // Vybereme náhodné prázdné políčko
+    const randomIndex = Math.floor(Math.random() * emptyCells.length);
+    const { row, col } = emptyCells[randomIndex];
+
+    // Vyplníme ho správným číslem z řešení
+    const newGrid = copyGrid(grid.value);
+    newGrid[row][col].value = solution[row][col].value;
+    grid.value = newGrid;
+    solveError.value = null;
+}
+
 function handleDifficultyChange(e) {
     const target = /** @type {HTMLSelectElement} */ (e.target);
     difficulty.value = target.value;
@@ -162,12 +202,15 @@ function handleDifficultyChange(e) {
 
 async function handleGenerate() {
     try {
-        grid.value = await generateSudokuAsync(DIFFICULTY_MAP[difficulty.value], difficulty.value);
+        const result = await generateSudokuAsync(DIFFICULTY_MAP[difficulty.value], difficulty.value);
+        grid.value = result.grid;
+        sudokuSource.value = result.source;
         currentGameId.value = null;
         solveError.value = null;
     } catch (error) {
         console.error('Chyba při generování:', error);
         solveError.value = 'Nepodařilo se vygenerovat sudoku.';
+        sudokuSource.value = null;
     }
 }
 
@@ -271,15 +314,23 @@ function isGameSolved(gameId) {
 
                     <div class="flex gap-2 flex-wrap justify-center">
                         <button
-                            class="px-4 py-2 bg-sky-600 text-white rounded hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-purple-300 flex items-center gap-2"
-                            @click="handleSolve"
-                            aria-label="Automaticky vyřešit sudoku"
+                            class="p-2 bg-amber-500 text-white rounded hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                            @click="handleHint"
+                            title="Nápověda"
+                            aria-label="Získat nápovědu pro jedno políčko"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path>
                                 <path d="M9 18h6"></path>
                                 <path d="M10 22h4"></path>
                             </svg>
+                        </button>
+
+                        <button
+                            class="px-4 py-2 bg-sky-600 text-white rounded hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                            @click="handleSolve"
+                            aria-label="Automaticky vyřešit sudoku"
+                        >
                             Vyřešit
                         </button>
 
@@ -298,6 +349,10 @@ function isGameSolved(gameId) {
                             Prázdné sudoku
                         </button>
                     </div>
+                </div>
+
+                <div v-if="sudokuSource" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Zdroj: {{ sudokuSource === 'api' ? 'dosuku API' : 'lokální generátor' }}
                 </div>
 
                 <div v-if="solveError" class="mt-2 text-red-600 dark:text-red-400 text-sm" role="alert">
@@ -364,6 +419,25 @@ function isGameSolved(gameId) {
                         <div class="flex items-center justify-between">
                             <span :class="['truncate text-sm md:text-xs font-bold flex items-center gap-2', game.name ? '' : 'italic text-gray-500 dark:text-gray-300']">
                                 {{ game.name || 'Nepojmenovaná hra' }}
+                                <span
+                                    v-if="game.difficulty"
+                                    :class="[
+                                        'flex items-center gap-0.5 px-1.5 py-0.5 rounded text-white',
+                                        game.difficulty === 'easy' ? 'bg-emerald-500' :
+                                        game.difficulty === 'medium' ? 'bg-amber-500' :
+                                        'bg-rose-500'
+                                    ]"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                    <svg v-if="game.difficulty !== 'easy'" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                    <svg v-if="game.difficulty === 'hard'" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                </span>
                                 <svg
                                     v-if="isGameSolved(game.id)"
                                     width="18"
@@ -453,42 +527,36 @@ function isGameSolved(gameId) {
                         Koš je prázdný
                     </div>
 
-                    <ul class="space-y-3 md:space-y-2" aria-label="Koš - smazané hry">
+                    <ul class="space-y-1" aria-label="Koš - smazané hry">
                         <li
                             v-for="game in trash"
                             :key="game.id"
-                            class="bg-gray-200 dark:bg-gray-600 dark:text-white rounded px-3 py-2 md:px-2 md:py-1 flex flex-col space-y-2 md:space-y-1"
+                            class="bg-gray-200 dark:bg-gray-600 dark:text-white rounded px-2 py-1 flex items-center justify-between gap-2"
                         >
-                            <div class="truncate text-sm md:text-xs font-bold">{{ game.name || 'Nepojmenovaná hra' }}</div>
-                            <div class="flex items-center justify-between">
-                                <span class="truncate text-sm md:text-xs">
-                                    {{ game.savedAt }}
-                                    <span class="ml-1 text-gray-500">{{ formatDeleteDate(game.deletedAt) }}</span>
-                                </span>
-                                <div class="flex gap-2">
-                                    <button
-                                        class="p-2 bg-[#009966] hover:bg-[#007a52] text-white rounded focus:outline-none flex items-center cursor-pointer"
-                                        title="Obnovit"
-                                        :aria-label="'Obnovit hru ' + (game.name || 'Nepojmenovaná hra')"
-                                        @click="restoreGame(game.id)"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                                            <path d="M3 3v5h5"></path>
-                                        </svg>
-                                    </button>
-                                    <button
-                                        class="p-2 bg-[#C7012A] hover:bg-[#a50122] text-white rounded focus:outline-none flex items-center cursor-pointer"
-                                        title="Smazat trvale"
-                                        :aria-label="'Trvale smazat hru ' + (game.name || 'Nepojmenovaná hra')"
-                                        @click="permanentDeleteGame(game.id)"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                                        </svg>
-                                    </button>
-                                </div>
+                            <span class="truncate text-xs font-medium">{{ game.name || 'Nepojmenovaná hra' }}</span>
+                            <div class="flex gap-1 shrink-0">
+                                <button
+                                    class="p-1 bg-[#009966] hover:bg-[#007a52] text-white rounded focus:outline-none flex items-center cursor-pointer"
+                                    title="Obnovit"
+                                    :aria-label="'Obnovit hru ' + (game.name || 'Nepojmenovaná hra')"
+                                    @click="restoreGame(game.id)"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                        <path d="M3 3v5h5"></path>
+                                    </svg>
+                                </button>
+                                <button
+                                    class="p-1 bg-[#C7012A] hover:bg-[#a50122] text-white rounded focus:outline-none flex items-center cursor-pointer"
+                                    title="Smazat trvale"
+                                    :aria-label="'Trvale smazat hru ' + (game.name || 'Nepojmenovaná hra')"
+                                    @click="permanentDeleteGame(game.id)"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
                             </div>
                         </li>
                     </ul>

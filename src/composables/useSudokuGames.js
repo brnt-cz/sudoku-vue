@@ -23,7 +23,7 @@ import { copyGrid, isGridSolved as checkIsGridSolved } from '../utils/sudokuGene
  *   editNameValue: import('vue').Ref<string>,
  *   solvedGameIds: import('vue').ComputedRef<Set<number>>,
  *   loadGame: (game: import('../types.js').SavedGame) => void,
- *   saveGame: () => void,
+ *   saveGame: (difficulty?: string) => void,
  *   deleteGame: (id: number) => void,
  *   restoreGame: (id: number) => void,
  *   permanentDeleteGame: (id: number) => void,
@@ -114,8 +114,9 @@ export function useSudokuGames(grid) {
 
     /**
      * Uloží aktuální hru
+     * @param {string} [difficulty] - Obtížnost hry
      */
-    function saveGame() {
+    function saveGame(difficulty) {
         const newGridSnapshot = copyGrid(grid.value);
 
         if (currentGameId.value !== null) {
@@ -137,19 +138,28 @@ export function useSudokuGames(grid) {
         } else {
             // Nová hra
             const newId = Date.now();
+            const gameNumber = savedGames.value.length + 1;
+            const defaultName = `Hra #${gameNumber}`;
             savedGames.value = [
                 ...savedGames.value,
                 {
                     id: newId,
                     grid: newGridSnapshot,
                     savedAt: new Date().toLocaleString(),
-                    name: ""
+                    name: defaultName,
+                    difficulty: difficulty || undefined
                 }
             ];
             currentGameId.value = newId;
-            editNameId.value = newId;
-            editNameValue.value = "";
             setToStorage(STORAGE_KEYS.GAMES, savedGames.value);
+
+            // Highlight efekt
+            highlightedId.value = newId;
+            if (highlightTimeout) clearTimeout(highlightTimeout);
+            highlightTimeout = setTimeout(() => {
+                highlightedId.value = null;
+                highlightTimeout = null;
+            }, 600);
         }
     }
 

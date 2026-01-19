@@ -43,7 +43,7 @@ export function useSudokuWorker() {
     /**
      * Generuje sudoku pomocí lokálního workeru
      * @param {number} minFilled
-     * @returns {Promise<import('../types.js').SudokuGrid>}
+     * @returns {Promise<{grid: import('../types.js').SudokuGrid, source: 'local'}>}
      */
     async function generateWithWorker(minFilled) {
         const workerInstance = getWorker();
@@ -59,7 +59,7 @@ export function useSudokuWorker() {
                     const response = event.data;
 
                     if (response.type === 'success') {
-                        resolve(response.grid);
+                        resolve({ grid: response.grid, source: 'local' });
                     } else {
                         reject(new Error(response.error || 'Chyba při generování'));
                     }
@@ -75,14 +75,14 @@ export function useSudokuWorker() {
         }
 
         // Fallback - synchronní generování
-        return generateSudokuSync(minFilled);
+        return { grid: generateSudokuSync(minFilled), source: 'local' };
     }
 
     /**
      * Generuje sudoku - primárně z API, fallback na lokální generování
      * @param {number} [minFilled=30] - Počet vyplněných políček pro lokální generování
      * @param {string} [difficulty='medium'] - Požadovaná obtížnost (easy, medium, hard)
-     * @returns {Promise<import('../types.js').SudokuGrid>}
+     * @returns {Promise<{grid: import('../types.js').SudokuGrid, source: 'api' | 'local'}>}
      */
     async function generateSudoku(minFilled = 30, difficulty = 'medium') {
         isGenerating.value = true;
@@ -93,7 +93,7 @@ export function useSudokuWorker() {
 
             if (apiResult && apiResult.grid) {
                 console.log('Sudoku načteno z API, obtížnost:', apiResult.difficulty);
-                return apiResult.grid;
+                return { grid: apiResult.grid, source: 'api' };
             }
 
             // Fallback: lokální generování
