@@ -14,6 +14,7 @@
  * @property {SudokuGrid} grid - Stav mřížky
  * @property {string} savedAt - Datum uložení
  * @property {string} [name] - Název hry
+ * @property {Difficulty} [difficulty] - Obtížnost hry
  * @property {number} [deletedAt] - Timestamp smazání (pro koš)
  */
 
